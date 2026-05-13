@@ -64,85 +64,67 @@ The root account is not used for any operational tasks.
 
 ## Actions — What Was Built and Why
 
-### Step 1 — IAM Setup
-
-Created a dedicated IAM admin user for all console operations and 
-stopped using the root account. Created a separate IAM user — 
-brianne-cli-user — with programmatic access only for AWS CLI 
-operations. No console access was granted to the CLI user.
-
-![CLI user access key creation](screenshots/brianne-cli-access-key.png)
-
----
-
-### Step 2 — Create the HTML File on EC2
+### Step 1 — SSH into EC2 Linux Instance
 
 SSH'd into an Amazon Linux EC2 instance from a Mac terminal using 
-key pair authentication. Created the website HTML file using nano 
-directly on the EC2 instance.
+key pair authentication. All file creation and AWS CLI work was 
+performed from inside this remote Linux server — not from a local 
+machine or the AWS console.
 
-<div style="display:flex;gap:8px;">
-  <img src="screenshots/ssh-into-terminal-with-confirm.png" width="32%"/>
-  <img src="screenshots/nano-index.html.png" width="32%"/>
-  <img src="screenshots/cat-index.html.png" width="32%"/>
-</div>
+![SSH into EC2](screenshots/ssh-into-terminal-with-confirm.png)
 
 ---
 
-### Step 3 — Create a Private S3 Bucket
+### Step 2 — Create a Private S3 Bucket
 
 Created a private S3 bucket in us-east-1 with Block Public Access 
 fully enabled. The bucket was never made public at any point during 
 this project.
 
-<div style="display:flex;gap:8px;">
-  <img src="screenshots/brianne-s3-bucket-created.png" width="49%"/>
-  <img src="screenshots/block-public-s3-access.png" width="49%"/>
-</div>
+![S3 bucket created](screenshots/brianne-s3-bucket-created.png)
+
+![Block Public Access enabled](screenshots/block-public-s3-access.png)
 
 ---
 
-### Step 4 — Upload index.html via AWS CLI
+### Step 3 — Upload index.html via AWS CLI
 
 Configured the AWS CLI on the EC2 instance with brianne-cli-user's 
 access keys and uploaded index.html to the S3 bucket using the 
-AWS CLI — no console uploads.
+AWS CLI — no console uploads. This replicates a real-world 
+infrastructure management workflow.
 
-![Upload index.html to bucket](screenshots/upload-index.html-to-bucket.png)
+![Upload index.html to bucket via CLI](screenshots/upload-index.html-to-bucket.png)
 
 ---
 
-### Step 5 — Create CloudFront Distribution with OAC
+### Step 4 — Create CloudFront Distribution with OAC
 
 Created a CloudFront distribution with Origin Access Control 
 configured so only this specific distribution can read from the 
 private S3 bucket. Set the viewer protocol policy to Redirect 
-HTTP to HTTPS and configured index.html as the default root object.
+HTTP to HTTPS.
 
-<div style="display:flex;gap:8px;">
-  <img src="screenshots/origin-access-control-policy.png" width="32%"/>
-  <img src="screenshots/viewer-protocol-policy-HTTPS.png" width="32%"/>
-  <img src="screenshots/default-root-object-indexhtml.png" width="32%"/>
-</div>
+![Origin Access Control configured](screenshots/origin-access-control-policy.png)
+
+![Viewer protocol policy — Redirect HTTP to HTTPS](screenshots/viewer-protocol-policy-HTTPS.png)
 
 ---
 
-### Step 6 — Update S3 Bucket Policy
+### Step 5 — Update S3 Bucket Policy
 
 Copied the OAC scoped bucket policy from CloudFront and applied 
 it to the S3 bucket. This policy restricts bucket access to only 
 the specific CloudFront distribution by ARN — more secure than a 
 general CloudFront service policy.
 
-<div style="display:flex;gap:8px;">
-  <img src="screenshots/OAC-policy-copied.png" width="32%"/>
-  <img src="screenshots/cloudfront-policy-put-in-s3.png" width="32%"/>
-  <img src="screenshots/successful-policy-edit.png" width="32%"/>
-</div>
+![OAC scoped bucket policy copied](screenshots/OAC-policy-copied.png)
+
+![CloudFront policy applied to S3](screenshots/cloudfront-policy-put-in-s3.png)
 
 ---
 
-### Step 7 — Implement Least Privilege IAM Policy
+### Step 6 — Implement Least Privilege IAM Policy
 
 Identified that brianne-cli-user had AmazonS3FullAccess which 
 violates least privilege. Created a custom IAM policy named 
@@ -150,26 +132,19 @@ brianne-static-website-policy that restricts the user to four
 specific actions on one specific bucket only. Removed the broad 
 managed policy and attached the custom one.
 
-<div style="display:flex;gap:8px;">
-  <img src="screenshots/iam-policy-creation.png" width="32%"/>
-  <img src="screenshots/remove-s3fullaccess-policy.png" width="32%"/>
-  <img src="screenshots/least-privilege-policy-enabled.png" width="32%"/>
-</div>
+![Custom IAM policy created](screenshots/iam-policy-creation.png)
+
+![AmazonS3FullAccess removed](screenshots/remove-s3fullaccess-policy.png)
 
 ---
 
-### Step 8 — Configure CloudWatch Monitoring
+### Step 7 — Configure CloudWatch Monitoring
 
 Created a CloudWatch alarm monitoring the CloudFront error rate 
-with an SNS topic for email notification. Confirmed the SNS 
-subscription so alerts would be delivered if delivery failures 
-occurred.
+with an SNS topic for email notification so delivery failures 
+are caught proactively before users are affected.
 
-<div style="display:flex;gap:8px;">
-  <img src="screenshots/alarm-creation.png" width="32%"/>
-  <img src="screenshots/sns-topic-creation.png" width="32%"/>
-  <img src="screenshots/sns-subscription-confirmed.png" width="32%"/>
-</div>
+![CloudWatch alarm details](screenshots/alarm-details.png)
 
 ---
 
@@ -178,12 +153,10 @@ occurred.
 The website loads successfully through the CloudFront URL over 
 HTTPS with a valid SSL certificate. Direct access to the S3 
 bucket URL returns Access Denied — confirming the security 
-architecture is working as designed.
+architecture is working exactly as designed. Content is only 
+accessible through CloudFront.
 
-<div style="display:flex;gap:8px;">
-  <img src="screenshots/static-website-https-secure.png" width="49%"/>
-  <img src="screenshots/side-by-side-access.png" width="49%"/>
-</div>
+![CloudFront success vs S3 Access Denied](screenshots/side-by-side-access.png)
 
 ---
 
@@ -211,7 +184,7 @@ AWS managed policy that allows creating, deleting, and modifying
 any S3 bucket in the account. Recognized this was excessive for 
 a user that only needs to upload files to one specific bucket. 
 Created a custom policy scoped to a single bucket and four 
-specific actions. AWS managed policies should never be modified 
+specific actions. AWS managed policies should never be edited 
 directly — a new custom policy was created instead.
 
 **Issue 4 — AWS console layout differences from documentation**
@@ -261,7 +234,7 @@ with index.html correctly set as the default root object.
 
 ---
 
-## Author
+## Let's Connect!
 Brianne Young | Cloud Engineer | 
 [LinkedIn](https://www.linkedin.com/in/brianne-young0/) | 
 [GitHub](https://github.com/brianne-y)
