@@ -9,17 +9,16 @@ from direct public exposure, and ensure only authorized users can
 update content.
 
 This project demonstrates a production-grade static website hosting 
-architecture on AWS using S3, CloudFront, IAM, and CloudWatch — 
-with security built in at every layer.
+architecture on AWS using S3, CloudFront, IAM, and CloudWatch,
+implementing defense in depth with security controls enforced at 
+every layer of the stack.
 
 ---
 
 ## Architecture
 
-User → CloudFront (HTTPS, global edge) → S3 Bucket (private, OAC)
-↑ uploads via AWS CLI from EC2 Linux instance (IAM controlled)
-
----
+![Architecture Diagram](screenshots/secure-static-architecture.png)
+*Secure static website hosting architecture - S3 origin kept private, all traffic routed through CloudFront with Origin Access Control*
 
 ---
 
@@ -45,7 +44,7 @@ keeping the bucket private and routing all traffic through CloudFront.
 
 **CloudFront must be the only entity that can read from the bucket.** 
 Origin Access Control was configured so that only the specific 
-CloudFront distribution — identified by its exact ARN — can read 
+CloudFront distribution (which is identified by its exact ARN) can read 
 from the bucket. Not any CloudFront distribution, not a browser, 
 not any other AWS service. Just this one distribution.
 
@@ -53,7 +52,7 @@ not any other AWS service. Just this one distribution.
 for CLI access was initially given AmazonS3FullAccess which violates 
 the principle of least privilege. This was replaced with a custom 
 policy restricting access to a single bucket and four specific 
-actions — PutObject, GetObject, DeleteObject, and ListBucket.
+actions: PutObject, GetObject, DeleteObject, and ListBucket.
 
 **All work must be performed as an IAM user, not root.** AWS best 
 practice requires the root account to be locked away after initial 
@@ -68,7 +67,7 @@ The root account is not used for any operational tasks.
 
 SSH'd into an Amazon Linux EC2 instance from a Mac terminal using 
 key pair authentication. All file creation and AWS CLI work was 
-performed from inside this remote Linux server — not from a local 
+performed from inside this remote Linux server, not from a local 
 machine or the AWS console.
 
 ![SSH into EC2](screenshots/ssh-into-terminal-with-confirm.png)
@@ -91,7 +90,7 @@ this project.
 
 Configured the AWS CLI on the EC2 instance with brianne-cli-user's 
 access keys and uploaded index.html to the S3 bucket using the 
-AWS CLI — no console uploads. This replicates a real-world 
+AWS CLI —-> no console uploads. This replicates a real-world 
 infrastructure management workflow.
 
 ![Upload index.html to bucket via CLI](screenshots/upload-index.html-to-bucket.png)
@@ -152,7 +151,7 @@ are caught proactively before users are affected.
 
 The website loads successfully through the CloudFront URL over 
 HTTPS with a valid SSL certificate. Direct access to the S3 
-bucket URL returns Access Denied — confirming the security 
+bucket URL returns Access Denied which confirms the security 
 architecture is working exactly as designed. Content is only 
 accessible through CloudFront.
 
