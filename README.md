@@ -3,14 +3,16 @@
 ## Scenario — What Problem Are We Solving?
 
 A small business needs a fast, secure, publicly accessible website 
-without the cost and complexity of managing a web server. The 
-solution must deliver content globally over HTTPS, protect storage 
-from direct public exposure, and ensure only authorized users can 
-update content.
+without the cost and complexity of managing a web server. Traditional 
+server hosting requires ongoing maintenance, patching, and 
+infrastructure management, resources a small business cannot 
+justify for a static site. The solution must deliver content 
+globally over HTTPS, protect storage from direct public exposure, 
+and ensure only authorized users can update content.
 
 This project demonstrates a production-grade static website hosting 
-architecture on AWS using S3, CloudFront, IAM, and CloudWatch,
-implementing defense in depth with security controls enforced at 
+architecture on AWS using S3, CloudFront, IAM, and CloudWatch which 
+implements defense in depth with security controls enforced at 
 every layer of the stack.
 
 ---
@@ -170,36 +172,23 @@ any operational tasks after that point.
 
 **Issue 2 — Region mismatch between EC2 and S3**
 The EC2 instance was created in us-east-2 (Ohio) while the AWS CLI 
-was configured to us-east-1 (N. Virginia). Initially this appeared 
-to be a conflict. After investigation, confirmed these are two 
-separate concerns — the EC2 instance region determines where the 
-server physically lives, while the CLI region determines where CLI 
-commands are sent. The S3 bucket was created in us-east-1 to match 
-the CLI configuration. No conflict occurred.
+was configured to us-east-1 (N. Virginia). After investigation, 
+confirmed these are two separate concerns. The EC2 instance region 
+determines where the server physically lives, while the CLI region 
+determines where CLI commands are sent. The upload completed 
+successfully with no errors. For production environments, keeping 
+EC2 and S3 in the same region is recommended to eliminate 
+cross-region data transfer costs and reduce latency. For this lab 
+environment the impact was negligible.
 
 **Issue 3 — Broad IAM permissions violating least privilege**
-brianne-cli-user was initially given AmazonS3FullAccess — a broad 
+brianne-cli-user was initially given AmazonS3FullAccess, which is a broad 
 AWS managed policy that allows creating, deleting, and modifying 
-any S3 bucket in the account. Recognized this was excessive for 
+any S3 bucket in the account. I quickly recognized this was excessive for 
 a user that only needs to upload files to one specific bucket. 
-Created a custom policy scoped to a single bucket and four 
+I then created a custom policy scoped to a single bucket and four 
 specific actions. AWS managed policies should never be edited 
-directly — a new custom policy was created instead.
-
-**Issue 4 — AWS console layout differences from documentation**
-The CloudFront creation workflow in the current AWS console differs 
-from older documentation. Origin Access Control is now configured 
-by checking "Allow private S3 bucket access to CloudFront" during 
-distribution creation rather than through a separate OAC creation 
-step. The OAC ID was confirmed by checking the Origins tab after 
-creation.
-
-**Issue 5 — Default root object not set on first distribution**
-The first CloudFront distribution was created without setting 
-index.html as the default root object. Without this, CloudFront 
-does not know which file to serve when a user hits the root URL 
-and returns an error. The distribution was deleted and recreated 
-with index.html correctly set as the default root object.
+directly, and a new custom policy was created instead.
 
 ---
 
@@ -219,17 +208,47 @@ with index.html correctly set as the default root object.
 
 ## Key Learnings
 
-- Security in cloud architecture is about layers — each control 
-  adds one more barrier that must be bypassed independently
+- Security in cloud architecture is about layers (defense in depth). Each control 
+  adds one more barrier that must be bypassed independently.
 - The difference between a general CloudFront bucket policy and 
-  an OAC scoped policy is significant — the latter locks access 
-  to a single specific distribution by ARN
-- AWS managed policies should never be edited directly — always 
-  create a custom policy when you need something more specific
+  an OAC scoped policy is significant! An OAC scoped bucket policy locks access to a single specific 
+  CloudFront distribution by ARN, which is far more secure than a general 
+  CloudFront service policy that allows any distribution to read 
+  from the bucket.
+- AWS managed policies should never be edited directly! Always 
+  create a custom policy when you need something more specific.
 - The root account should be locked away immediately after 
-  initial setup and never used for day to day operations
-- Region configuration for the AWS CLI is independent of the 
-  region where your EC2 instance lives
+  initial setup and never used for day to day operations.
+- AWS CLI region configuration is independent of the region where 
+  your EC2 instance lives — however for production environments, 
+  keeping compute and storage in the same region eliminates 
+  cross-region data transfer costs and reduces latency.
+
+---
+
+## Cleanup — Avoid Unnecessary AWS Charges
+
+When you are done testing and exploring this project, clean up 
+your AWS resources in the following order to avoid unexpected charges.
+
+**Important:** Always disable and delete CloudFront before deleting 
+the S3 bucket. Deleting S3 first while CloudFront still points to 
+it will cause errors.
+
+1. CloudFront → Distributions → select distribution → Disable 
+   (wait 5-10 minutes for status to show Disabled)
+2. CloudFront → Distributions → select distribution → Delete
+3. S3 → select bucket → Empty bucket → confirm
+4. S3 → select bucket → Delete bucket → confirm
+5. IAM → Users → brianne-cli-user → Security credentials → 
+   Deactivate and delete access keys
+6. IAM → Policies → brianne-static-website-policy → Delete
+7. CloudWatch → Alarms → delete alarm
+8. SNS → Topics → delete topic
+
+All services used in this project are free tier eligible. 
+If cleanup is completed promptly after testing, no charges 
+should appear on your AWS bill.
 
 ---
 
